@@ -3,7 +3,9 @@ import std.string;
 import std.conv;
 import core.runtime;
 
-import std.c.windows.windows;
+import win32.winuser;
+import win32.wingdi;
+import win32.winmm;
 
 //Graphics.
 pragma( lib, "gdi32.lib" );

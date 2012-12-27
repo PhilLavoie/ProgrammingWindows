@@ -3,16 +3,13 @@ module sysmets;
 import std.stdio;
 import std.string;
 import std.conv;
+import std.algorithm;
 import core.runtime;
 
-import std.c.windows.windows;
-
-
-
-//Graphics.
-pragma( lib, "gdi32.lib" );
-//Multimedia.
-pragma( lib, "winmm.lib" );
+import win32.windef;
+import win32.winuser;
+import win32.wingdi;
+import win32.mmsystem;
 
 /**
   Lines definitions.
@@ -46,79 +43,69 @@ static this() {
     Metric( SM_CYDLGFRAME, "SM_CYDLGFRAME", "Dialog frame height" ),
     Metric( SM_CYVTHUMB, "SM_CYVTHUMB", "Vertical scroll thumb height" ),
     Metric( SM_CXHTHUMB, "SM_CXHTHUMB", "Vertical scroll thumb widht" ),
-      /+
-            
-      SM_CXICON =               11,
-      SM_CYICON =               12,
-      SM_CXCURSOR =             13,
-      SM_CYCURSOR =             14,
-      SM_CYMENU =               15,
-      SM_CXFULLSCREEN =         16,
-      SM_CYFULLSCREEN =         17,
-      SM_CYKANJIWINDOW =        18,
-      SM_MOUSEPRESENT =         19,
-      SM_CYVSCROLL =            20,
-      SM_CXHSCROLL =            21,
-      SM_DEBUG =                22,
-      SM_SWAPBUTTON =           23,
-      SM_RESERVED1 =            24,
-      SM_RESERVED2 =            25,
-      SM_RESERVED3 =            26,
-      SM_RESERVED4 =            27,
-      SM_CXMIN =                28,
-      SM_CYMIN =                29,
-      SM_CXSIZE =               30,
-      SM_CYSIZE =               31,
-      SM_CXFRAME =              32,
-      SM_CYFRAME =              33,
-      SM_CXMINTRACK =           34,
-      SM_CYMINTRACK =           35,
-      SM_CXDOUBLECLK =          36,
-      SM_CYDOUBLECLK =          37,
-      SM_CXICONSPACING =        38,
-      SM_CYICONSPACING =        39,
-      SM_MENUDROPALIGNMENT =    40,
-      SM_PENWINDOWS =           41,
-      SM_DBCSENABLED =          42,
-      SM_CMOUSEBUTTONS =        43,
-
-
-      SM_CXFIXEDFRAME =         SM_CXDLGFRAME,
-      SM_CYFIXEDFRAME =         SM_CYDLGFRAME,
-      SM_CXSIZEFRAME =          SM_CXFRAME,
-      SM_CYSIZEFRAME =          SM_CYFRAME,
-
-      SM_SECURE =               44,
-      SM_CXEDGE =               45,
-      SM_CYEDGE =               46,
-      SM_CXMINSPACING =         47,
-      SM_CYMINSPACING =         48,
-      SM_CXSMICON =             49,
-      SM_CYSMICON =             50,
-      SM_CYSMCAPTION =          51,
-      SM_CXSMSIZE =             52,
-      SM_CYSMSIZE =             53,
-      SM_CXMENUSIZE =           54,
-      SM_CYMENUSIZE =           55,
-      SM_ARRANGE =              56,
-      SM_CXMINIMIZED =          57,
-      SM_CYMINIMIZED =          58,
-      SM_CXMAXTRACK =           59,
-      SM_CYMAXTRACK =           60,
-      SM_CXMAXIMIZED =          61,
-      SM_CYMAXIMIZED =          62,
-      SM_NETWORK =              63,
-      SM_CLEANBOOT =            67,
-      SM_CXDRAG =               68,
-      SM_CYDRAG =               69,
-      SM_SHOWSOUNDS =           70,
-      SM_CXMENUCHECK =          71,
-      SM_CYMENUCHECK =          72,
-      SM_SLOWMACHINE =          73,
-      SM_MIDEASTENABLED =       74,
-      SM_CMETRICS =             75,
-      +/
-      Metric( SM_CMETRICS, "SM_CMETRICS", "SYMETRICS?!?!?! LOOOOL" ),  
+    Metric( SM_CXICON, "SM_CXICON", "Icon width" ),
+    Metric( SM_CYICON, "SM_CYICON", "Icon height" ),
+    Metric( SM_CXCURSOR, "SM_CXCURSOR", "Cursor width" ),
+    Metric( SM_CYCURSOR, "SM_CYCURSOR", "Cursor height" ),
+    Metric( SM_CYMENU, "SM_CYMENU", "Menu bar height" ),
+    Metric( SM_CXFULLSCREEN, "SM_CXFULLSCREEN", "Full screen client area width" ),
+    Metric( SM_CYFULLSCREEN, "SM_CYFULLSCREEN", "Full screen client area height" ),
+    Metric( SM_CYKANJIWINDOW, "SM_CYKANJIWINDOW", "Kanji window height" ),
+    Metric( SM_MOUSEPRESENT, "SM_MOUSEPRESENT", "Is there a mouse here?" ),
+    Metric( SM_CYVSCROLL, "SM_CYVSCROLL", "Vertical scroll arrow height" ),
+    Metric( SM_CXHSCROLL, "SM_CXHSCROLL", "Horizontal scroll arrow width" ),
+    Metric( SM_DEBUG, "SM_DEBUG", "Is there some debug here?" ),
+    Metric( SM_SWAPBUTTON, "SM_SWAPBUTTON", "Are left and right click inverted?" ),
+    Metric( SM_CXMIN, "SM_CXMIN", "Minimum window width" ),
+    Metric( SM_CXSIZE, "SM_CXSIZE", "Min/Max/Close button width" ),
+    Metric( SM_CYSIZE, "SM_CYSIZE", "Min/Max/Close button height" ),
+    Metric( SM_CXFRAME, "SM_CXFRAME", "Window sizing frame widht" ),
+    Metric( SM_CYFRAME, "SM_CYFRAME", "Window sizing frame height" ),
+    Metric( SM_CXMINTRACK, "SM_CXMINTRACK", "Minimum window tracking width" ),
+    Metric( SM_CYMINTRACK, "SM_CYMINTRACK", "Minimum window tracking height" ),
+    Metric( SM_CXDOUBLECLK, "SM_CXDOUBLECLK", "Double click x tolerance" ),
+    Metric( SM_CYDOUBLECLK, "SM_CYDOUBLECLK", "Double click y tolerance" ),
+    Metric( SM_CXICONSPACING, "SM_CXICONSPACING", "Horizontal icon spacing" ),
+    Metric( SM_CYICONSPACING, "SM_CYICONSPACING", "Vertical icon spacing" ),
+    Metric( SM_MENUDROPALIGNMENT, "SM_MENUDROPALIGNMENT", "Left or right menu drop" ),
+    Metric( SM_PENWINDOWS, "SM_PENWINDOWS", "Pen etensions installed?" ),
+    Metric( SM_DBCSENABLED, "SM_DBCSENABLED", "Double byte char set enabled?" ),
+    Metric( SM_CMOUSEBUTTONS, "SM_CMOUSEBUTTONS", "Number of mouse button?" ),
+    Metric( SM_SECURE, "SM_SECURE", "Is this shit secured?" ),
+    Metric( SM_CXEDGE, "SM_CXEDGE", "Text 3D border width" ),
+    Metric( SM_CYEDGE, "SM_CYEDGE", "Text 3D border height" ),
+    Metric( SM_CXMINSPACING, "SM_CXMINSPACING", "Minimized window spacing width" ),
+    Metric( SM_CYMINSPACING, "SM_CYMINSPACING", "Minimized window spacing height" ),
+    Metric( SM_CXSMICON, "SM_CXSMICON", "Small icon width" ),
+    Metric( SM_CYSMICON, "SM_CYSMICON", "Small icon height" ),
+    Metric( SM_CYSMCAPTION, "SM_CYSMCAPTION", "Small caption height" ),
+    Metric( SM_CXSMSIZE, "SM_CXSMSIZE", "Small caption button width" ),
+    Metric( SM_CYSMSIZE, "SM_CYSMSIZE", "Small caption button height" ),
+    Metric( SM_CXMENUSIZE, "SM_CXMENUSIZE", "Menu bar buton width" ),
+    Metric( SM_CYMENUSIZE, "SM_CYMENUSIZE", "Menu bar buton height" ),
+    Metric( SM_ARRANGE, "SM_ARRANGE", "How minimzed windows arranged" ),
+    Metric( SM_CXMINIMIZED, "SM_CXMINIMIZED", "Minimized window width" ),
+    Metric( SM_CYMINIMIZED, "SM_CYMINIMIZED", "Minimized window height" ),
+    Metric( SM_CXMAXTRACK, "SM_CXMAXTRACK", "Maximum draggable width" ),
+    Metric( SM_CYMAXTRACK, "SM_CYMAXTRACK", "Maximum draggable height" ),
+    Metric( SM_CXMAXIMIZED, "SM_CXMAXIMIZED", "Maximized window width" ),
+    Metric( SM_CYMAXIMIZED, "SM_CYMAXIMIZED", "Maximized window height" ),
+    Metric( SM_NETWORK, "SM_NETWORK", "Hello, Network?" ),
+    Metric( SM_CLEANBOOT, "SM_CLEANBOOT", "How system was booted" ),
+    Metric( SM_CXDRAG, "SM_CXDRAG", "Avoid drag x tolerance" ),
+    Metric( SM_CYDRAG, "SM_CYDRAG", "Avoid drag y tolerance" ),
+    Metric( SM_SHOWSOUNDS, "SM_SHOWSOUNDS", "Present sounds visually" ),
+    Metric( SM_CXMENUCHECK, "SM_CXMENUCHECK", "Menu check-mark widht" ),
+    Metric( SM_CYMENUCHECK, "SM_CYMENUCHECK", "Menu check-mark height" ),
+    Metric( SM_SLOWMACHINE, "SM_SLOWMACHINE", "Is this machine worth crap?" ),
+    Metric( SM_MIDEASTENABLED, "SM_MIDEASTENABLED", "Speak paki?" ),
+    Metric( SM_MOUSEWHEELPRESENT, "SM_MOUSEWHEELPRESENT", "Rolling that wheel, aren't we?" ),
+    Metric( SM_XVIRTUALSCREEN, "SM_XVIRTUALSCREEN", "Virtual screen x origin" ),
+    Metric( SM_YVIRTUALSCREEN, "SM_YVIRTUALSCREEN", "Virtual screen y origin" ),
+    Metric( SM_CXVIRTUALSCREEN, "SM_CXVIRTUALSCREEN", "Virtual screen width" ),
+    Metric( SM_CYVIRTUALSCREEN, "SM_CYVIRTUALSCREEN", "Virtual screen height" ),
+    Metric( SM_CMONITORS, "SM_CMONITORS", "Number of monitors" ),
+    Metric( SM_SAMEDISPLAYFORMAT, "SM_SAMEDISPLAYFORMAT", "Same color format flag" )
   ];
 }
 
@@ -135,6 +122,8 @@ extern( Windows ) nothrow LRESULT WndProc( HWND hwnd, UINT message, WPARAM wPara
   TEXTMETRICA tm;
   
   static int cxChar, cxCaps, cyChar; //Average char width, caps width and char height respectively.
+  static int cxClient, cyClient; //Current window size (width and height).
+  static int vScrollPos;
   
 
   switch( message ) {
@@ -148,14 +137,22 @@ extern( Windows ) nothrow LRESULT WndProc( HWND hwnd, UINT message, WPARAM wPara
       cxChar = tm.tmAveCharWidth;
       cxCaps = ( tm.tmPitchAndFamily & 1 ? 3 : 2 ) * cxChar / 2;
       cyChar = tm.tmHeight + tm.tmExternalLeading;
+      SetScrollRange( hwnd, SB_VERT, 0, sysmetrics.length - 1, false );
+      SetScrollPos( hwnd, SB_VERT, vScrollPos, true );
+      return 0;
+    case WM_SIZE:
+      cxClient = LOWORD( lParam );
+      cyClient = HIWORD( lParam );
       return 0;
     case WM_LBUTTONUP:
     case WM_PAINT:
-      InvalidateRect( hwnd, null, true );
+      InvalidateRect( hwnd, null, true ); //Invalidate the whole client area.
       hdc = BeginPaint( hwnd, &ps );
       scope( exit ){ EndPaint( hwnd, & ps ); }
       int height = 0;
-      foreach( metric; sysmetrics ) {
+      //Could optimize by clipping the rest too.
+      for( size_t i = vScrollPos; i < sysmetrics.length; ++i ) {
+        auto metric = sysmetrics[ i ];
         TextOutA( hdc, 0, height, metric.label, metric.labelLen );
         TextOutA( hdc, 22 * cxCaps, height, metric.description, metric.descriptionLen );
         SetTextAlign( hdc, TA_RIGHT | TA_TOP );
@@ -170,20 +167,45 @@ extern( Windows ) nothrow LRESULT WndProc( HWND hwnd, UINT message, WPARAM wPara
       }
       
       return 0;
-    case WM_DESTROY:
-      PostQuitMessage( 0 );
-      return 0;
     case WM_LBUTTONDOWN:
       InvalidateRect( hwnd, null, true );
       hdc = BeginPaint( hwnd, &ps );
       GetClientRect( hwnd, &rect );
       DrawTextA( hdc, "WOOOOOOOOOOOOOOOOOOOOOT".toStringz, -1, &rect, DT_SINGLELINE | DT_CENTER | DT_VCENTER );
       EndPaint( hwnd, &ps );
-      return 0;      
+      return 0;
+    case WM_VSCROLL:
+      switch( LOWORD( wParam ) ) {
+        case SB_LINEUP:
+          --vScrollPos;
+          break;
+        case SB_LINEDOWN:
+          ++vScrollPos;
+          break;
+        case SB_PAGEUP:
+          vScrollPos -= cyClient / cyChar;
+          break;
+        case SB_PAGEDOWN:
+          vScrollPos += cyClient / cyChar;
+          break;
+        case SB_THUMBPOSITION:
+          vScrollPos = HIWORD( wParam );
+          break;
+        default:
+      }
+      vScrollPos = max( 0, min( vScrollPos, sysmetrics.length - 1 ) );
+      if( vScrollPos != GetScrollPos( hwnd, SB_VERT ) ) {
+        SetScrollPos( hwnd, SB_VERT, vScrollPos, true );
+        InvalidateRect( hwnd, null, true );
+      }
+      return 0;
+    case WM_DESTROY:
+      PostQuitMessage( 0 );
+      return 0;    
     default:
-      break;
+      return DefWindowProcA( hwnd, message, wParam, lParam );
   }
-  return DefWindowProcA( hwnd, message, wParam, lParam );
+  assert( false );
 }
 
 int mainImpl( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int iCmdShow ) {
@@ -208,7 +230,7 @@ int mainImpl( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int
   hWnd = CreateWindowA(
     className,                        //Window class used.
     "The goddamn program".toStringz,  //Window caption.
-    WS_OVERLAPPEDWINDOW,                    //Window style.
+    WS_OVERLAPPEDWINDOW | WS_VSCROLL,                    //Window style.
     CW_USEDEFAULT,                    //Initial x position.
     CW_USEDEFAULT,                    //Initial y position.
     CW_USEDEFAULT,                    //Initial x size.
@@ -220,7 +242,7 @@ int mainImpl( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int
   );                           
  
 
-  ShowWindow( hWnd, SW_SHOWMAXIMIZED );
+  ShowWindow( hWnd, SW_SHOWNORMAL );
   UpdateWindow( hWnd ); 
 
   MSG msg;
