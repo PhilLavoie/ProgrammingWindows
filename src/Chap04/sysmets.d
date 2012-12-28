@@ -116,14 +116,18 @@ void register( ref WNDCLASS wndClass ) {
 }
 
 extern( Windows ) nothrow LRESULT WndProc( HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam ) {
+  static int cxChar, cxCaps, cyChar; //Average char width, caps width and char height respectively.
+  static int cxClient, cyClient; //Current window size (width and height).
+  static int maxWidth;
+  
   HDC hdc;
   PAINTSTRUCT ps; 
   RECT rect;
   TEXTMETRICA tm;
+  SCROLLINFO si;
   
-  static int cxChar, cxCaps, cyChar; //Average char width, caps width and char height respectively.
-  static int cxClient, cyClient; //Current window size (width and height).
-  static int vScrollPos;
+  int x, y, verticalPos, horizontalPos, paintBegin, paintEnd;
+  
   
 
   switch( message ) {
@@ -137,33 +141,136 @@ extern( Windows ) nothrow LRESULT WndProc( HWND hwnd, UINT message, WPARAM wPara
       cxChar = tm.tmAveCharWidth;
       cxCaps = ( tm.tmPitchAndFamily & 1 ? 3 : 2 ) * cxChar / 2;
       cyChar = tm.tmHeight + tm.tmExternalLeading;
-      SetScrollRange( hwnd, SB_VERT, 0, sysmetrics.length - 1, false );
-      SetScrollPos( hwnd, SB_VERT, vScrollPos, true );
+      maxWidth = 40 * cxChar + 22 * cxCaps; //Save the width of the three columns.
       return 0;
     case WM_SIZE:
       cxClient = LOWORD( lParam );
       cyClient = HIWORD( lParam );
+      //Set vertical scroll bar range and page size.
+      si.cbSize = si.sizeof;
+      si.fMask = SIF_RANGE | SIF_PAGE;
+      si.nMin = 0;
+      si.nMax = sysmetrics.length - 1;
+      si.nPage = cyClient / cyChar; //Number of lines per page.
+      SetScrollInfo( hwnd, SB_VERT, &si, true );
+      //Set horizontal scroll bar range and page size.
+      si.cbSize = si.sizeof;
+      si.fMask = SIF_RANGE | SIF_PAGE;
+      si.nMin = 0;
+      si.nMax = 2 + maxWidth / cxChar;
+      si.nPage = cxClient / cxChar; //Number of columns per page.
+      SetScrollInfo( hwnd, SB_HORZ, &si, true );
+      return 0;
+    case WM_VSCROLL:
+      //Get all vertical scroll bar info.
+      si.cbSize = si.sizeof;
+      si.fMask = SIF_ALL;
+      GetScrollInfo( hwnd, SB_VERT, &si );
+      verticalPos = si.nPos;
+      
+      switch( LOWORD( wParam ) ) {
+        case SB_TOP:
+          si.nPos = si.nMin;
+          break;
+        case SB_BOTTOM:
+          si.nPos = si.nMax;
+          break;
+        case SB_LINEUP:
+          --si.nPos;
+          break;
+        case SB_LINEDOWN:
+          ++si.nPos;
+          break;
+        case SB_PAGEUP:
+          si.nPos -= si.nPage;
+          break;
+        case SB_PAGEDOWN:
+          si.nPos += si.nPage;
+          break;
+        case SB_THUMBTRACK:
+          si.nPos = si.nTrackPos;
+          break;
+        default:
+      }
+      si.fMask = SIF_POS;
+      SetScrollInfo( hwnd, SB_VERT, &si, true );
+      GetScrollInfo( hwnd, SB_VERT, &si );
+      if( si.nPos != verticalPos ) {
+        ScrollWindow( hwnd, 0, cyChar * ( verticalPos - si.nPos ), null, null );
+        UpdateWindow( hwnd );
+      }
+      return 0;
+    case WM_HSCROLL:
+      //Get all the horizontal scroll bar information.
+      si.cbSize = si.sizeof;
+      si.fMask = SIF_ALL;
+      GetScrollInfo( hwnd, SB_HORZ, &si );
+      horizontalPos = si.nPos;
+      
+      switch( LOWORD( wParam ) ) {
+        case SB_LINELEFT:
+          --si.nPos;
+          break;
+        case SB_LINERIGHT:
+          ++si.nPos;
+          break;
+        case SB_PAGELEFT:
+          si.nPos -= si.nPage;
+          break;
+        case SB_PAGERIGHT:
+          si.nPos += si.nPage;
+          break;
+        case SB_THUMBPOSITION:
+          si.nPos = si.nTrackPos;
+          break;
+        default:
+      }
+      
+      si.fMask = SIF_POS;
+      SetScrollInfo( hwnd, SB_HORZ, &si, true );
+      GetScrollInfo( hwnd, SB_HORZ, &si );
+      if( si.nPos != horizontalPos ) {
+        ScrollWindow( hwnd, cxChar * ( horizontalPos - si.nPos ), 0, null, null );
+        //UpdateWindow( hwnd );
+      }
+      
       return 0;
     case WM_LBUTTONUP:
+      InvalidateRect( hwnd, null, true );
+      UpdateWindow( hwnd );
+      return 0;
     case WM_PAINT:
-      InvalidateRect( hwnd, null, true ); //Invalidate the whole client area.
+      //InvalidateRect( hwnd, null, true ); //Invalidate the whole client area.
       hdc = BeginPaint( hwnd, &ps );
       scope( exit ){ EndPaint( hwnd, & ps ); }
-      int height = 0;
+      
+      //Get vertical scroll bar pos.
+      si.cbSize = si.sizeof;
+      si.fMask = SIF_POS;
+      GetScrollInfo( hwnd, SB_VERT, &si );
+      verticalPos = si.nPos;
+      //Get the horizontal pos.
+      GetScrollInfo( hwnd, SB_HORZ, &si );
+      horizontalPos = si.nPos;
+      //Determine limits.
+      paintBegin = max( 0, verticalPos + ps.rcPaint.top / cyChar );
+      paintEnd = min( sysmetrics.length - 1, verticalPos + ps.rcPaint.bottom / cyChar );
+      
       //Could optimize by clipping the rest too.
-      for( size_t i = vScrollPos; i < sysmetrics.length; ++i ) {
+      for( size_t i = paintBegin; i <= paintEnd; ++i ) {
         auto metric = sysmetrics[ i ];
-        TextOutA( hdc, 0, height, metric.label, metric.labelLen );
-        TextOutA( hdc, 22 * cxCaps, height, metric.description, metric.descriptionLen );
+        x = cxChar * ( 1 - horizontalPos );
+        y = cyChar * ( i - verticalPos );
+        TextOutA( hdc, x, y, metric.label, metric.labelLen );
+        TextOutA( hdc,x + ( 22 * cxCaps ), y, metric.description, metric.descriptionLen );
         SetTextAlign( hdc, TA_RIGHT | TA_TOP );
         auto value = GetSystemMetrics( metric.index );
         string valueStr;
         try {
           valueStr = value.to!string;
         } catch( Exception e ) { ; }
-        TextOutA( hdc, 22 * cxCaps + 40 * cxChar, height, valueStr.toStringz, valueStr.length );
+        TextOutA( hdc, x + ( 22 * cxCaps ) + ( 40 * cxChar ), y, valueStr.toStringz, valueStr.length );
         SetTextAlign( hdc, TA_LEFT | TA_TOP );
-        height += cyChar;
       }
       
       return 0;
@@ -173,31 +280,6 @@ extern( Windows ) nothrow LRESULT WndProc( HWND hwnd, UINT message, WPARAM wPara
       GetClientRect( hwnd, &rect );
       DrawTextA( hdc, "WOOOOOOOOOOOOOOOOOOOOOT".toStringz, -1, &rect, DT_SINGLELINE | DT_CENTER | DT_VCENTER );
       EndPaint( hwnd, &ps );
-      return 0;
-    case WM_VSCROLL:
-      switch( LOWORD( wParam ) ) {
-        case SB_LINEUP:
-          --vScrollPos;
-          break;
-        case SB_LINEDOWN:
-          ++vScrollPos;
-          break;
-        case SB_PAGEUP:
-          vScrollPos -= cyClient / cyChar;
-          break;
-        case SB_PAGEDOWN:
-          vScrollPos += cyClient / cyChar;
-          break;
-        case SB_THUMBPOSITION:
-          vScrollPos = HIWORD( wParam );
-          break;
-        default:
-      }
-      vScrollPos = max( 0, min( vScrollPos, sysmetrics.length - 1 ) );
-      if( vScrollPos != GetScrollPos( hwnd, SB_VERT ) ) {
-        SetScrollPos( hwnd, SB_VERT, vScrollPos, true );
-        InvalidateRect( hwnd, null, true );
-      }
       return 0;
     case WM_DESTROY:
       PostQuitMessage( 0 );
@@ -230,7 +312,7 @@ int mainImpl( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int
   hWnd = CreateWindowA(
     className,                        //Window class used.
     "The goddamn program".toStringz,  //Window caption.
-    WS_OVERLAPPEDWINDOW | WS_VSCROLL,                    //Window style.
+    WS_OVERLAPPEDWINDOW | WS_VSCROLL |WS_HSCROLL,                    //Window style.
     CW_USEDEFAULT,                    //Initial x position.
     CW_USEDEFAULT,                    //Initial y position.
     CW_USEDEFAULT,                    //Initial x size.
