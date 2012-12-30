@@ -12,7 +12,7 @@ import win32.wingdi;
 import win32.mmsystem;
 
 /**
-  Lines definitions.
+  Metrics definitions.
   */
 struct Metric {
   size_t index;
